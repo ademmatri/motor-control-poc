@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProgressBox - Redundant Wireless Motor Controller POC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            min-height: 100vh;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #334155;
+            padding-bottom: 15px;
+        }
+        .logo { font-weight: 700; font-size: 24px; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        .meta { text-align: right; font-size: 14px; color: var(--text-muted); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #334155;
+            position: relative;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* TRANSMITTER CONTROLS */
+        .tx-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .tx-box {
+            background: #111827;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 5px solid var(--accent);
+            transition: all 0.3s;
+        }
+        .tx-box.failed {
+            border-left-color: var(--danger);
+            opacity: 0.6;
+        }
+        .tx-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Poppins';
+            font-weight: 600;
+            font-size: 13px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn.recover { background: var(--success); }
+
+        /* MOTOR VISUALIZATION */
+        .motor-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 20px;
+        }
+        .motor-housing {
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 8px solid #475569;
+            background: #334155;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .motor-shaft {
+            width: 24px;
+            height: 24px;
+            background: #94a3b8;
+            border-radius: 50%;
+            position: relative;
+        }
+        .motor-blade {
+            width: 12px;
+            height: 70px;
+            background: var(--accent);
+            position: absolute;
+            bottom: 50%;
+            left: calc(50% - 6px);
+            transform-origin: bottom center;
+            border-radius: 6px;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* CONSOLE & METRICS */
+        .console {
+            background: #090d16;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 15px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 13px;
+            color: #38bdf8;
+            border: 1px solid #1e293b;
+        }
+        .console-line { margin-bottom: 4px; line-height: 1.4; }
+        .console-line.alert { color: #f59e0b; }
+        .console-line.crit { color: var(--danger); font-weight: bold; }
+
+        .metric-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .metric-card {
+            background: #111827;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-val { font-size: 24px; font-weight: 700; color: var(--accent); }
+        .metric-lbl { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-top: 5px; }
+
+        .slider-group {
+            margin-top: 15px;
+        }
+        .slider-group label { display: block; font-size: 14px; margin-bottom: 5px; color: var(--text-muted); }
+        .slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-cube"></i> ProgressBox RF Redundancy Lab
+        </div>
+        <div class="meta">
+            <strong>Target Hardware:</strong> STM32F4 Core RTOS Engine<br>
+            <strong>Status:</strong> Emulated Live Environment
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <div style="display: flex; flex-direction: column; gap: 25px;">
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-tower-broadcast"></i> Multi-Band Active Transmitters</div>
+                <div class="tx-container">
+                    <div class="tx-box" id="txA">
+                        <div class="tx-header">
+                            <h3>Transmitter A (Primary)</h3>
+                            <span class="badge online" id="statusA">2.4 GHz Active</span>
+                        </div>
+                        <p style="font-size:14px; color: var(--text-muted); margin-bottom:15px;">Main channel executing high-speed control updates.</p>
+                        <button class="btn" id="btnA" onclick="toggleTX('A')">Inject Failure / Cut Link</button>
+                    </div>
+                    <div class="tx-box" id="txB">
+                        <div class="tx-header">
+                            <h3>Transmitter B (Secondary)</h3>
+                            <span class="badge online" id="statusB">868 MHz Active</span>
+                        </div>
+                        <p style="font-size:14px; color: var(--text-muted); margin-bottom:15px;">Sub-GHz backup stream running in parallel synchronization.</p>
+                        <button class="btn" id="btnB" onclick="toggleTX('B')">Inject Failure / Cut Link</button>
+                    </div>
+                </div>
+
+                <div class="slider-group">
+                    <label id="speedLabel">Command Output Frequency (Target Duty Cycle): 60%</label>
+                    <input type="range" min="0" max="100" value="60" class="slider" id="speedSlider" oninput="updateSpeed(this.value)">
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><i class="fa-solid fa-terminal"></i> FreeRTOS Scheduler Runtime Traces</div>
+                <div class="console" id="traceConsole"></div>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 25px;">
+            <div class="card" style="flex-grow: 1;">
+                <div class="card-title"><i class="fa-solid fa-engine"></i> Receiver Actuator Hub</div>
+                
+                <div class="motor-display">
+                    <div class="motor-housing">
+                        <div class="motor-shaft" id="shaft">
+                            <div class="motor-blade" id="blade"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div id="activeStreamLabel" style="font-weight:700; font-size:18px; color: var(--success);">Using Link A (2.4 GHz)</div>
+                        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">TIM2->CCR1 Register Target Value: <span id="ccrVal" style="font-family:'JetBrains Mono'; color:#fff;">600</span></div>
+                    </div>
+                </div>
+
+                <div class="metric-row">
+                    <div class="metric-card">
+                        <div class="metric-val" id="mSeq">0</div>
+                        <div class="metric-lbl">Last Seq#</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-val" id="mFailover" style="color: var(--success);">&lt; 1ms</div>
+                        <div class="metric-lbl">Failover Latency</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-val" id="mStatus" style="color: var(--success);">SAFE</div>
+                        <div class="metric-lbl">System Safety</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            txA_online: true,
+            txB_online: true,
+            active_stream: 'A',
+            seq: 0,
+            speed: 60,
+            last_packet_A: Date.now(),
+            last_packet_B: Date.now()
+        };
+
+        const consoleEl = document.getElementById('traceConsole');
+
+        function logTrace(msg, type='') {
+            const time = new Date().toISOString().slice(11, 23);
+            let classAttr = 'console-line';
+            if (type === 'alert') classAttr += ' alert';
+            if (type === 'crit') classAttr += ' crit';
+            
+            consoleEl.innerHTML += `<div class="${classAttr}">[${time}] ${msg}</div>`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function toggleTX(ch) {
+            if (ch === 'A') {
+                state.txA_online = !state.txA_online;
+                document.getElementById('txA').classList.toggle('failed', !state.txA_online);
+                document.getElementById('statusA').className = state.txA_online ? 'badge online' : 'badge offline';
+                document.getElementById('statusA').innerText = state.txA_online ? '2.4 GHz Active' : 'Offline / Interrupted';
+                document.getElementById('btnA').innerText = state.txA_online ? 'Inject Failure / Cut Link' : 'Restore Transmitter Link';
+                document.getElementById('btnA').className = state.txA_online ? 'btn' : 'btn recover';
+                logTrace(`Hardware Interface Event: TX_A (2.4GHz) connection toggled -> ${state.txA_online ? 'CONNECTED' : 'DISCONNECTED'}`, state.txA_online ? '' : 'crit');
+            } else {
+                state.txB_online = !state.txB_online;
+                document.getElementById('txB').classList.toggle('failed', !state.txB_online);
+                document.getElementById('statusB').className = state.txB_online ? 'badge online' : 'badge offline';
+                document.getElementById('statusB').innerText = state.txB_online ? '868 MHz Active' : 'Offline / Interrupted';
+                document.getElementById('btnB').innerText = state.txB_online ? 'Inject Failure / Cut Link' : 'Restore Transmitter Link';
+                document.getElementById('btnB').className = state.txB_online ? 'btn' : 'btn recover';
+                logTrace(`Hardware Interface Event: TX_B (868MHz) connection toggled -> ${state.txB_online ? 'CONNECTED' : 'DISCONNECTED'}`, state.txB_online ? '' : 'crit');
+            }
+        }
+
+        function updateSpeed(val) {
+            state.speed = parseInt(val);
+            document.getElementById('speedLabel').innerText = `Command Output Frequency (Target Duty Cycle): ${val}%`;
+            document.getElementById('ccrVal').innerText = val * 10;
+        }
+
+        // Main RTOS Simulation Thread Loop
+        setInterval(() => {
+            state.seq = (state.seq + 1) % 256;
+            document.getElementById('mSeq').innerText = state.seq;
+            const now = Date.now();
+
+            if (state.txA_online) state.last_packet_A = now;
+            if (state.txB_online) state.last_packet_B = now;
+
+            // FreeRTOS Comms Task Emulation Checking Inputs
+            if (state.txA_online && state.active_stream === 'A') {
+                logTrace(`[Task: WirelessComms] Rx Packet Match: Seq=${state.seq}, Source=2.4GHz -> Forwarded to Queue`);
+            } else if (state.txB_online && state.active_stream === 'B') {
+                logTrace(`[Task: WirelessComms] Rx Packet Match: Seq=${state.seq}, Source=868MHz -> Forwarded to Queue`);
+            }
+
+            // Deduplication logs
+            if (state.txA_online && state.txB_online) {
+                logTrace(`[Task: Redundancy] Deduplication Filter: Duplicate packet dropped from backup stream.`, 'alert');
+            }
+
+            // Watchdog & Failover Logic execution (Evaluated <100ms window)
+            if (state.active_stream === 'A' && !state.txA_online) {
+                // Instantly flip to stream B if active link drops
+                if (state.txB_online) {
+                    state.active_stream = 'B';
+                    document.getElementById('activeStreamLabel').innerText = "Using Link B (868 MHz Backup)";
+                    document.getElementById('activeStreamLabel').style.color = "var(--accent)";
+                    document.getElementById('mFailover').innerText = "2.4ms";
+                    document.getElementById('mFailover').style.color = "var(--accent)";
+                    logTrace(`[CRITICAL FAILOVER] Stream A timed out! Seamless switchover to Stream B executed successfully.`, 'crit');
+                } else {
+                    // Both links dead
+                    document.getElementById('activeStreamLabel').innerText = "EMERGENCY STOP - NO LINK";
+                    document.getElementById('activeStreamLabel').style.color = "var(--danger)";
+                    document.getElementById('mStatus').innerText = "TRIPPED";
+                    document.getElementById('mStatus').style.color = "var(--danger)";
+                    logTrace(`[SYSTEM HALT] Total link failure detected. TIM2->CCR1 forced to 0 for machine safety.`, 'crit');
+                }
+            } else if (state.active_stream === 'B' && state.txA_online) {
+                // Fallback to original layout preference if it returns
+                state.active_stream = 'A';
+                document.getElementById('activeStreamLabel').innerText = "Using Link A (2.4 GHz)";
+                document.getElementById('activeStreamLabel').style.color = "var(--success)";
+                document.getElementById('mFailover').innerText = "< 1ms";
+                document.getElementById('mFailover').style.color = "var(--success)";
+                logTrace(`[Recovery] Primary Link A restored. Reverting to 2.4GHz stream.`);
+            }
+
+            // Reset systems health to Safe if at least one link is healthy
+            if (state.txA_online || state.txB_online) {
+                document.getElementById('mStatus').innerText = "SAFE";
+                document.getElementById('mStatus').style.color = "var(--success)";
+            }
+
+            // Animate blade based on system status
+            const blade = document.getElementById('blade');
+            if (!state.txA_online && !state.txB_online) {
+                blade.style.animation = 'none';
+            } else {
+                const duration = state.speed > 0 ? (1.5 - (state.speed / 100)) : 0;
+                if (duration === 0) {
+                    blade.style.animation = 'none';
+                } else {
+                    blade.style.animation = `spin ${duration}s linear infinite`;
+                }
+            }
+        }, 800);
+
+        // Initial Boot sequence trace
+        logTrace("Initializing FreeRTOS Core System Memory...");
+        logTrace("SPI Driver Configuration Complete: nRF24L01+ and CC1101 active.");
+        logTrace("Spawning System Tasks: MotorControl, WirelessComms, HealthMonitor, RedundancyManager.");
+    </script>
+</body>
+</html>
